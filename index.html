@@ -1,1 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HMI Arduino USB</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 30px; background: #121212; color: white; }
+    h1 { font-size: 24px; margin-bottom: 20px; }
+    .btn { padding: 18px 25px; font-size: 18px; font-weight: bold; margin: 10px auto; border-radius: 10px; border: none; cursor: pointer; display: block; width: 85%; max-width: 320px; }
+    .btn-connect { background-color: #007bff; color: white; }
+    .btn-toggle { background-color: #28a745; color: white; }
+  </style>
+</head>
+<body>
+
+  <h1>HMI Arduino - Control LED</h1>
+  
+  <button class="btn btn-connect" onclick="conectarUSB()">1. CONECTAR USB</button>
+  <button id="btnLed" class="btn btn-toggle" onclick="alternarLED()">2. ENCENDER / APAGAR</button>
+
+  <script>
+    let port;
+    let writer;
+    let estadoLed = false;
+
+    async function conectarUSB() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        
+        const textEncoder = new TextEncoderStream();
+        textEncoder.readable.pipeTo(port.writable);
+        writer = textEncoder.writable.getWriter();
+        
+        alert("¡Arduino Conectado con éxito!");
+      } catch (err) {
+        alert("Error al conectar: " + err);
+      }
+    }
+
+    async function alternarLED() {
+      if (!writer) {
+        alert("Primero presiona '1. CONECTAR USB'");
+        return;
+      }
+
+      estadoLed = !estadoLed;
+      const comando = estadoLed ? "1" : "0";
+      
+      await writer.write(comando);
+      
+      document.getElementById("btnLed").innerText = estadoLed ? "APAGAR LED" : "ENCENDER LED";
+      document.getElementById("btnLed").style.backgroundColor = estadoLed ? "#dc3545" : "#28a745";
+    }
+  </script>
+</body>
+</html>
 
