@@ -11,6 +11,8 @@
     .btn-connect { background-color: #007bff; color: white; }
     .btn-toggle { background-color: #28a745; color: white; }
   </style>
+  <!-- Cargamos el Polyfill de WebUSB Serial para Android -->
+  <script src="https://cdn.jsdelivr.net/gh/webusb/arduino/library/WebUSB.js"></script>
 </head>
 <body>
 
@@ -21,39 +23,58 @@
 
   <script>
     let port;
-    let writer;
     let estadoLed = false;
 
     async function conectarUSB() {
       try {
-        port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 9600 });
-        
-        const textEncoder = new TextEncoderStream();
-        textEncoder.readable.pipeTo(port.writable);
-        writer = textEncoder.writable.getWriter();
-        
+        if ('serial' in navigator) {
+          // Si el navegador soporta Web Serial (PC)
+          port = await navigator.serial.requestPort();
+          await port.open({ baudRate: 9600 });
+        } else if ('usb' in navigator) {
+          // Si está en celular Android (WebUSB)
+          const device = await navigator.usb.requestDevice({ filters: [] });
+          await device.open();
+          await device.selectConfiguration(1);
+          await device.claimInterface(0);
+          port = device;
+        } else {
+          alert("Tu navegador no soporta comunicaciones USB/Serial.");
+          return;
+        }
+
         alert("¡Arduino Conectado con éxito!");
       } catch (err) {
-        alert("Error al conectar: " + err);
+        alert("Error al conectar: " + err.message);
       }
     }
 
     async function alternarLED() {
-      if (!writer) {
+      if (!port) {
         alert("Primero presiona '1. CONECTAR USB'");
         return;
       }
 
       estadoLed = !estadoLed;
       const comando = estadoLed ? "1" : "0";
-      
-      await writer.write(comando);
-      
-      document.getElementById("btnLed").innerText = estadoLed ? "APAGAR LED" : "ENCENDER LED";
-      document.getElementById("btnLed").style.backgroundColor = estadoLed ? "#dc3545" : "#28a745";
+      const data = new TextEncoder().encode(comando);
+
+      try {
+        if ('serial' in navigator && port.writable) {
+          const writer = port.writable.getWriter();
+          await writer.write(comando);
+          writer.releaseLock();
+        } else if (port.transferOut) {
+          // Envío directo vía WebUSB (Endpoint 1 o 2 en Android)
+          await port.transferOut(1, data);
+        }
+
+        document.getElementById("btnLed").innerText = estadoLed ? "APAGAR LED" : "ENCENDER LED";
+        document.getElementById("btnLed").style.backgroundColor = estadoLed ? "#dc3545" : "#28a745";
+      } catch (err) {
+        alert("Error al enviar comando: " + err.message);
+      }
     }
   </script>
 </body>
 </html>
-
